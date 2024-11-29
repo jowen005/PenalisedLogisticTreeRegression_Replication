@@ -9,22 +9,80 @@ import numpy as np
 def pltr(dataframe):
     X = dataframe
     y = dataframe['Label'].to_numpy()
+
+    # Get predictive variables from column names
+    predictive_variables = X.columns
+
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, stratify=y)
     decision_trees(X_train, y_train)
 
-def decision_trees(X, primary, y, secondary = None):
-    # Only use the two passed columns to create the decision tree
-    dt_X = X[primary, secondary]
+def decision_trees(X, y, primary, secondary):
+    # Use one variable to do the first split
+    dt_X1 = X[primary]
+    # Use the same variable plus a second one to split the maintained child node
+    dt_X2 = X[primary, secondary]
+    # Train the 1 split decision tree
+    dtree = DecisionTreeClassifier(max_depth=1, max_leaf_nodes=2)
+    dtree.fit(dt_X1,y)
+    # Get v1 values from 1 split tree
+    univariate_threshold, univariate_feature, v1_class, retained_id = get_split1_info(dtree)
+    # Get the retained node to split for the 2 split tree
+    rnode_data = dt_X1[dtree.apply(dt_X1) == retained_id] # How do i get a second variable in?
+    rnode_labels = y[dtree.apply(dt_X1) == retained_id]
 
-    dtree = DecisionTreeClassifier(max_depth=2, max_leaf_nodes=3)
-    dtree.fit(dt_X,y)
+    # Train the 2nd split decision tree
+    dtree.fit(rnode_data, rnode_labels)
 
-    univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class = get_tree_info(dtree)
+    #univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class = get_tree_info(dtree)
 
-    return (univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class)
+    # return (univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class)
 
-# Extract the thresholds, features, and clasees for each split and leaf nodes
-def get_tree_info(fitted_tree):
+# Extract the thresholds, features, and classes for each split and leaf nodes in 1 split tree
+def get_split1_info(fitted_tree):
+    n_nodes = fitted_tree.tree_.node_count
+    children_left = fitted_tree.tree_.children_left
+    children_right = fitted_tree.tree_.children_right
+    feature = fitted_tree.tree_.feature
+    threshold = fitted_tree.tree_.threshold
+    values = fitted_tree.tree_.value
+
+    # node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
+    # is_leaves = np.zeros(shape=n_nodes, dtype=bool)
+    # Flag that turns false if we store a class for a node on depth 2
+    node_stack = [(0, 0)]
+
+    while len(node_stack) > 0:
+        node_id, depth = node_stack.pop()
+        # If the left and right child of a node is not the same it is split node
+        is_split_node = children_left[node_id] != children_right[node_id]
+        # If a split node, append left and right children and depth to `stack' to visit them next
+        if is_split_node:
+            node_stack.append((children_left[node_id], depth + 1))
+            node_stack.append((children_right[node_id], depth + 1))
+            v1_node = children_right[node_id]
+            # The root split gives the univariate threshold and feature
+            if depth == 0:
+                univariate_threshold = threshold[node_id]
+                univariate_feature = feature[node_id]
+            else:
+                print('there should be no split at depth 1 or lower for 1 split tree')
+        else:
+            # is_leaves[node_id] = True
+            leaf_values = values[node_id]
+            if depth == 1:
+                if n_nodes[node_id] == v1_node:
+                    v1_class = np.argmax(leaf_values)
+                else:
+                    # Store the id of the node that needs to be split in 2 split
+                    retained_id = node_id
+            else:
+                print('there should not be any leaves at depth 2 or lower for 1 split tree')
+
+    # Return values
+    return (univariate_threshold, univariate_feature, v1_class, retained_id)
+
+# Extract the thresholds, features, and classes for each split and leaf nodes in 2 split tree
+def get_split2_info(fitted_tree):
     n_nodes = fitted_tree.tree_.node_count
     children_left = fitted_tree.tree_.children_left
     children_right = fitted_tree.tree_.children_right
