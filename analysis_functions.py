@@ -7,38 +7,64 @@ from sklearn.preprocessing import Binarizer
 import numpy as np
 
 def pltr(dataframe):
-    X = dataframe
     y = dataframe['Label'].to_numpy()
+    X = dataframe.loc[:, dataframe.columns != 'Label']
 
     # Get predictive variables from column names
     predictive_variables = X.columns
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, stratify=y)
-    decision_trees(X_train, y_train)
+    # Split dataset evenly and randomly (Nx2 cross validation)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.50, stratify=y)
 
-def decision_trees(X, y, primary, secondary):
+    # Get the univariate and bivariate effects without duplicates
+    univariate_effects, bivariate_effects = decision_trees(X_train, y_train)
+
+    # Perform the lasso to get relevant variables for the logistic regression
+
+    # Plug into logistic regression
+
+def decision_trees(X, y):
+    # Create 3D arrays storing each threshold with its feature and class
+    # Univariate Array
+    univariate_effects = []
+    bivariate_effects = []
+    # Get predictive variables from column names
+    for primary in X.columns:
+        # Use one variable to do the first split
+        dt_X1 = X[primary]
+        for secondary in X.columns:
+            # Use the same variable plus a second one to split the child node
+            dt_X2 = X[primary, secondary]
     # Use one variable to do the first split
-    dt_X1 = X[primary]
+    # dt_X1 = X[primary]
     # Use the same variable plus a second one to split the maintained child node
-    dt_X2 = X[primary, secondary]
-    # Train the 1 split decision tree
-    dtree = DecisionTreeClassifier(max_depth=1, max_leaf_nodes=2)
-    dtree.fit(dt_X1,y)
-    # Get v1 values from 1 split tree
-    univariate_threshold, univariate_feature, v1_class = get_split1_info(dtree)
-    # Get the retained node to split for the 2 split tree (retiained means to use in analysis not split again)
-    # rnode_data = dt_X1[dtree.apply(dt_X1) == retained_id] # How do i get a second variable in?
-    # rnode_labels = y[dtree.apply(dt_X1) == retained_id]
+    # dt_X2 = X[primary, secondary]
+             # Train the 1 split decision tree
+            dtree = DecisionTreeClassifier(max_depth=1, max_leaf_nodes=2)
+            dtree.fit(dt_X1,y)
+            # Get v1 values from 1 split tree
+            univariate_threshold, univariate_feature, v1_class = get_split1_info(dtree)
+            univariate_effects.append([univariate_feature,univariate_threshold, v1_class])
+            # Get the retained node to split for the 2 split tree (retiained means to use in analysis not split again)
+            # rnode_data = dt_X1[dtree.apply(dt_X1) == retained_id] # How do i get a second variable in?
+            # rnode_labels = y[dtree.apply(dt_X1) == retained_id]
 
-    # Train the 2nd split decision tree
-    dtree2 = DecisionTreeClassifier(max_depth=2, max_leaf_nodes=3)
-    dtree2.fit(dt_X2, y)
-    # Get v2 values from 2 split tree
-    bivariate_threshold, bivariate_feature, v2_class = get_split2_info(dtree2)
+            # Train the 2nd split decision tree
+            dtree2 = DecisionTreeClassifier(max_depth=2, max_leaf_nodes=3)
+            dtree2.fit(dt_X2, y)
+            # Get v2 values from 2 split tree
+            bivariate_threshold, bivariate_feature, v2_class = get_split2_info(dtree2)
+            # Only add if this is not a duplicate bivariate effect
+            bivariate_effect = [bivariate_threshold, bivariate_feature, v2_class]
+            if bivariate_effect not in bivariate_effects:
+                bivariate_effects.append(bivariate_effect)
 
     #univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class = get_tree_info(dtree)
 
     # return (univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature, v2_class, v3_class)
+
+    # Return the univariate and bivariate effects
+    return univariate_effects, bivariate_effects
 
 # Extract the thresholds, features, and classes for each split and leaf nodes in 1 split tree
 def get_split1_info(fitted_tree):
@@ -82,7 +108,7 @@ def get_split1_info(fitted_tree):
                 print('there should not be any leaves at depth 2 or lower for 1 split tree')
 
     # Return values
-    return (univariate_threshold, univariate_feature, v1_class)
+    return univariate_threshold, univariate_feature, v1_class
 
 # Extract the thresholds, features, and classes for each split and leaf nodes in 2 split tree
 def get_split2_info(fitted_tree):
@@ -93,8 +119,8 @@ def get_split2_info(fitted_tree):
     threshold = fitted_tree.tree_.threshold
     values = fitted_tree.tree_.value
 
-    node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
-    is_leaves = np.zeros(shape=n_nodes, dtype=bool)
+    # node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
+    # is_leaves = np.zeros(shape=n_nodes, dtype=bool)
     # Flag that turns false if we store a class for a node on depth 2
     first_d2_leaf = True
     node_stack = [(0, 0)]
@@ -138,4 +164,4 @@ def get_split2_info(fitted_tree):
     # Return values
     # return(univariate_threshold, univariate_feature, v1_class, bivariate_threshold, bivariate_feature,
     #        v2_class, v3_class)
-    return (bivariate_threshold, bivariate_feature, v2_class)
+    return bivariate_threshold, bivariate_feature, v2_class
