@@ -10,6 +10,34 @@ import numpy as np
 import matlab.engine
 import AdaptoLogit as al
 
+# Confusion matrix function
+def confusion_matrix(pred, actual):
+    if len(pred) != len(actual):
+        return -1
+
+    tp = 0
+    tn = 0
+    fp = 0
+    fn = 0
+    for i in range(len(actual)):
+        if actual[i] > 0.5:  # labels that are 1.0 (positive examples)
+            if pred[i] > 0.5:
+                tp += 1  # correctly predicted positive
+            else:
+                fn += 1  # incorrectly predicted negative
+        else:  # labels that are 0.0 (negative examples)
+            if pred[i] < 0.5:
+                tn += 1  # correctly predicted negative
+            else:
+                fp += 1  # incorrectly predicted positive
+
+    return tp, tn, fp, fn
+
+# Function for calculating the performance statistics
+def performance_stats(tp, tn, fp, fn):
+    stats = []
+    return stats
+
 # Returns fit plt regression model
 def pltr(X, y, X_test):
     # Get predictive variables from column names

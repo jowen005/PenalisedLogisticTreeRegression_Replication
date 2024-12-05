@@ -24,3 +24,5 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.50, strati
 
 # Run the model and get the predicted values
 y_pred = pltr(X_train, y, X_test)
+# Find confusion matrix values using y predicted and y test values
+tp, tn, fp, fn = confusion_matrix(y_pred, y_test)
