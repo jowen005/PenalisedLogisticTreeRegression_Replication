@@ -11,7 +11,7 @@ from sklearn.impute import SimpleImputer
 
 
 # Load the data
-dataframe = pd.read_csv("cs-test.csv")
+dataframe = pd.read_csv("cs-training.csv")
 dataframe.rename(columns={'SeriousDlqin2yrs': 'Label'}, inplace=True)
 # Fill in missing values by imputing by mean
 # Imputation by mean
