@@ -2,13 +2,17 @@ from os.path import split
 
 import pandas as pd
 from numpy.ma.core import argmax
-from sklearn.tree import DecisionTreeClassifier
+from pyexpat import features
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.datasets import make_classification
-from sklearn.model_selection import  train_test_split
+from sklearn.model_selection import  train_test_split, GridSearchCV
+from sklearn.linear_model import  LogisticRegression
 from sklearn.preprocessing import Binarizer
 import numpy as np
 import matlab.engine
 import AdaptoLogit as al
+import matplotlib.pyplot as plt
 
 # Confusion matrix function
 def confusion_matrix(pred, actual):
@@ -38,10 +42,44 @@ def performance_stats(tp, tn, fp, fn):
     stats = []
     return stats
 
+# def adaptive_lasso_weights(X, y):
+#     # Create logistic regression model to get adaptive lasso weights, l2 penalty is ridge, so this is Logistic-Ridge
+#     weight_model = LogisticRegression(penalty='l2', fit_intercept=False, solver='saga')
+#     # Use the model to get initial coeficients
+#     weight_coefs = np.abs(weight_model)
+#
+#     # Use coeficients to get weights
+#     # We divide 1 by the coefs to get a weight that is inversely proportional to the coeficient's importance
+#     weights = 1 / weight_coefs
+#
+#     return weights
+
+
+# Created adaptive lasso function
+def adaptive_lasso(X, y):
+    # Get adaptive lasso weights from logistic-ridge (l2 penalty) regression
+    # weights = adaptive_lasso_weights(X, y)
+    weights = al.AdaptiveWeights(weight_technique='ridge')
+    weights.fit(X, y)
+
+    model = al.AdaptiveLogistic(weight_array=weights.lasso_weights_[0], solver='saga')
+    # model.fit(X,y)
+    pg = {'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
+    #
+    # X.drop()
+    #
+    cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
+    cv_grid_search.fit(X, y)
+
+    return cv_grid_search
+
+    # L1 is for lasso penalty
+    # model = LogisticRegression(penalty='l1', fit_intercept=False, solver='saga',)
+
 # Returns fit plt regression model
-def pltr(X, y, X_test):
+def pltr(X, y):
     # Get predictive variables from column names
-    predictive_variables = X.columns
+    # predictive_variables = X.columns
 
     # Get the univariate and bivariate effects without duplicates
     univariate_effects, bivariate_effects = decision_trees(X, y)
@@ -49,23 +87,68 @@ def pltr(X, y, X_test):
     # Apply threshold effects to dataset
     X_effects_train = apply_effects(univariate_effects, bivariate_effects, X)
 
-    # Perform the lasso to get relevant variables for the logistic regression and perform logistic regression
-    # Start the matlab engine since the functions used in the paper are from matlab
-    eng = matlab.engine.start_matlab("-desktop")
-    # Fit the X_train and y_train in 10 fold cross validated adaptive lasso penalized logistic regression
-    model = eng.glm_logistic(y, X_effects_train,  eng.workspace["nointercept"])
-    weights = al.AdaptiveWeights(weight_technique='ridge') # Just used default power weights may change to 1 for v in paper
-    cv_fit = eng.cv_penalized(model, eng.workspace['@p_adaptive'],  eng.workspace["gamma"], 0.5,
-                              eng.workspace["adaptivewt"], {weights},  eng.workspace["folds"], 10)
+    # Split dataset evenly and randomly (Nx2 cross validation)
+    X_train, X_test, y_train, y_test = train_test_split(X_effects_train, y, test_size=0.50, stratify=y)
 
-    y_pred = eng.predict(cv_fit, X_test)
-    # Stop the matlab engine
-    eng.quit()
+    X_train_array = X_train.values
+    final_model = adaptive_lasso(X_train_array, y_train)
+    # Get weights for the adaptive lasso
+    # weights = al.AdaptiveWeights(weight_technique='ridge')
+    # weights.fit(X_train, y_train)
+    #
+    # weights_lasso = weights.lasso_weights_
+    #
+    # weights_dict = dict(enumerate(weights_lasso.flatten(), 1))
+
+    # model = LogisticRegression(penalty='l1', fit_intercept=False, solver='saga', max_iter=1000, class_weight= weights_dict)
+    # # Create the adaptive lasso model
+    # model = al.AdaptiveLogistic()
+    # pg = {'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 1000], 'weight_array': weights.lasso_weights_,
+    #       #       'solver': ['saga', 'liblinear']}
+    """The param grid allows cross validation to actually select the best parameters. It works by putting
+    the different parameters into the model passed to the GridSearchCV, so these parameters are for the
+     adaptive lasso."""
+    # pg = {'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
+    # cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
+    # cv_grid_search.fit(X_train, y_train)
+    #
+    # final_model = cv_grid_search.best_estimator_
+    y_pred = final_model.predict(X_test)
+
+    # y_pred = cv_grid_search.predict(X_test)
 
     # Return the predicted target values
-    return y_pred
+    return y_pred, y_test
 
 
+    """All the below code was for the attempted MATLAB implementation using the same functions as the paper"""
+    # X_effects_train.to_csv('NewDataforRegression.csv', index=False)
+
+    # Convert pandas dataframe to python dictionary
+    # X_effects_train = X_effects_train.to_dict(orient='list')
+
+    # # Convert pandas dataframe to numpy array
+    # X_effects_train_array = X_effects_train.to_numpy()
+
+    # Perform the lasso to get relevant variables for the logistic regression and perform logistic regression
+
+    # Perform the lasso to get relevant variables for the logistic regression and perform logistic regression
+    # # Start the matlab engine since the functions used in the paper are from matlab
+    # eng = matlab.engine.start_matlab("-desktop")
+    # Convert python dictionary to matlab dictionary
+    # X_train_new = eng.py.dict(X_effects_train)
+    # Convert numpy array to matlab array
+    # X_train_new = X_effects_train_array
+    # Fit the X_train and y_train in 10 fold cross validated adaptive lasso penalized logistic regression
+    # eng.cd(r'C:\Program Files\MATLAB\R2024b\penalized\models')
+    # model = eng.glm_logistic(y, X_train_new, "nointercept")
+    # weights = al.AdaptiveWeights(weight_technique='ridge') # Just used default power weights may change to 1 for v in paper
+    # cv_fit = eng.cv_penalized(model, eng.workspace['@p_adaptive'],  eng.workspace["gamma"], 0.5,
+    #                           eng.workspace["adaptivewt"], {weights},  eng.workspace["folds"], 10)
+
+    # y_pred = eng.predict(cv_fit, X_test)
+    # # Stop the matlab engine
+    # eng.quit()
 
 def decision_trees(X, y):
     # Create 3D arrays storing each threshold with its feature and class
@@ -73,32 +156,40 @@ def decision_trees(X, y):
     univariate_effects = []
     bivariate_effects = []
     # Get predictive variables from column names
+    # Use one variable to do the first split
     for primary in X.columns:
         # Use one variable to do the first split
         dt_X1 = X[primary]
+
+        # Train the 1 split decision tree
+        # Change dt_x1 into a 2D array that can be used in fit
+        dt_X1 = np.array(dt_X1)
+        dt_X1 = dt_X1.reshape(-1, 1)
+        dtree = DecisionTreeClassifier(max_depth=1, max_leaf_nodes=2)
+        dtree.fit(dt_X1, y)
+        # if primary == 'RevolvingUtilizationOfUnsecuredLines':
+        #     plt.figure(figsize=(12, 12))
+        #     plot_tree(dtree, label='all', filled=True, node_ids=True)
+        #     plt.savefig('tree1.png')
+        # Get v1 values from 1 split tree
+        univariate_threshold, univariate_feature, v1_class_left, v1_class_right = get_split1_info(dtree)
+        univariate_effects.append([univariate_threshold, univariate_feature, v1_class_left, v1_class_right])
+        # Get the retained node to split for the 2 split tree (retained means to use in analysis not split again)
+        # rnode_data = dt_X1[dtree.apply(dt_X1) == retained_id] # How do i get a second variable in?
+        # rnode_labels = y[dtree.apply(dt_X1) == retained_id]
+        # Use the same variable plus a second one to split the maintained child node
         for secondary in X.columns:
             # Use the same variable plus a second one to split the child node
-            dt_X2 = X[primary, secondary]
-    # Use one variable to do the first split
-    # dt_X1 = X[primary]
-    # Use the same variable plus a second one to split the maintained child node
-    # dt_X2 = X[primary, secondary]
-             # Train the 1 split decision tree
-            dtree = DecisionTreeClassifier(max_depth=1, max_leaf_nodes=2)
-            dtree.fit(dt_X1,y)
-            # Get v1 values from 1 split tree
-            univariate_threshold, univariate_feature, v1_class_left, v1_class_right = get_split1_info(dtree)
-            univariate_effects.append([univariate_feature,univariate_threshold, v1_class_left, v1_class_right])
-            # Get the retained node to split for the 2 split tree (retiained means to use in analysis not split again)
-            # rnode_data = dt_X1[dtree.apply(dt_X1) == retained_id] # How do i get a second variable in?
-            # rnode_labels = y[dtree.apply(dt_X1) == retained_id]
+            if secondary == primary:
+                continue
+            dt_X2 = X[[primary, secondary]]
 
             # Train the 2nd split decision tree
             dtree2 = DecisionTreeClassifier(max_depth=2, max_leaf_nodes=3)
             dtree2.fit(dt_X2, y)
             # Get v2 values from 2 split tree
             (bivariate_threshold1, bivariate_feature1, bivariate_threshold2, bivariate_feature2,
-             v2_class_left, v2_class_right, thres_1) = get_split2_info(dtree2)
+            v2_class_left, v2_class_right, thres_1) = get_split2_info(dtree2)
             # Only add if this is not a duplicate bivariate effect
             bivariate_effect = [bivariate_threshold1, bivariate_feature1, bivariate_threshold2,
                                 bivariate_feature2, v2_class_left, v2_class_right, thres_1]
@@ -145,7 +236,7 @@ def get_split1_info(fitted_tree):
             # is_leaves[node_id] = True
             leaf_values = values[node_id]
             if depth == 1:
-                if n_nodes[node_id] == v1_node:
+                if node_id == v1_node:
                     # This is the left child and the predicted value when the threshold is true
                     v1_class_left = np.argmax(leaf_values)
                 else:
@@ -193,9 +284,9 @@ def get_split2_info(fitted_tree):
                 bivariate_threshold2 = threshold[node_id]
                 bivariate_feature2 = feature[node_id]
                 v2_node = children_left[node_id]
-                if n_nodes[node_id] == l_child:
+                if node_id == l_child:
                     thres_1 = True
-                elif n_nodes[node_id] == r_child:
+                elif node_id == r_child:
                     thres_1 = False
             elif depth >= 2:
                 print('there should be no split at depth 2 or lower')
@@ -205,7 +296,7 @@ def get_split2_info(fitted_tree):
             # if depth == 1:
             #     v1_class = np.argmax(leaf_values)
             if depth == 2:
-                if n_nodes[node_id] == v2_node:
+                if node_id == v2_node:
                     #  This is the left child and the predicted value when the threshold is true
                     v2_class_left = np.argmax(leaf_values)
                 # If we haven't visited a node at depth 2 before then this node's class is the class if the threshold is
@@ -233,8 +324,8 @@ def apply_effects(univariate, bivariate, X):
     # Create new dataset
     X_new = pd.DataFrame()
     for u in univariate:
-        feature = u[1]
         threshold = u[0]
+        feature = u[1]
         effect_value_left = u[2]
         effect_value_right = u[3]
         applied_effects = []
@@ -248,9 +339,9 @@ def apply_effects(univariate, bivariate, X):
         # Go through the dataset and determine what each individual would be predicted based on the rule
         for index, row in X.iterrows():
             if row[feature_name] <=  threshold:
-                applied_effects[index] =  effect_value_left
+                applied_effects.append(effect_value_left)
             else:
-                applied_effects[index] = effect_value_right
+                applied_effects.append(effect_value_right)
         # Add column for decision rule into dataframe
         X_new[decision_rule] = applied_effects
 
@@ -259,10 +350,10 @@ def apply_effects(univariate, bivariate, X):
         # Copy that column into new dataset
 
     for b in bivariate:
-        feature1 = b[1]
-        feature2 = b[3]
         threshold1 = b[0]
-        threshold2= b[2]
+        feature1 = b[1]
+        threshold2 = b[2]
+        feature2 = b[3]
         effect_value_left = b[4]
         effect_value_right = b[5]
         thres_1 = b[6]
@@ -285,23 +376,23 @@ def apply_effects(univariate, bivariate, X):
         decision_rule = dr_p1 + dr_p2
 
         # Go through the dataset and determine what each individual would be predicted based on the rule
-        for index, row in X.itterows():
+        for index, row in X.iterrows():
             if thres_1:
                 if row[feature1_name] <= threshold1:
                     if row[feature2_name] <= threshold2:
-                        applied_effects[index] = effect_value_left
+                        applied_effects.append(effect_value_left)
                     else:
-                        applied_effects[index] = effect_value_right
+                        applied_effects.append(effect_value_right)
                 else:
-                    applied_effects[index] = 0
+                    applied_effects.append(0)
             else:
                 if row[feature1_name] > threshold1:
                     if row[feature2_name] <= threshold2:
-                        applied_effects[index] = effect_value_left
+                        applied_effects.append(effect_value_left)
                     else:
-                        applied_effects[index] = effect_value_right
+                        applied_effects.append(effect_value_right)
                 else:
-                    applied_effects[index] = 0
+                    applied_effects.append(0)
 
         # Add column for decision rule into dataframe
         X_new[decision_rule] = applied_effects

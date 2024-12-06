@@ -11,10 +11,22 @@ from sklearn.impute import SimpleImputer
 
 
 # Load the data
-dataframe = pd.read_csv("cs-training.csv")
+dataframe = pd.read_csv("cs-training.csv", index_col=False)
+# Remove index column that comes with dataset
+dataframe.drop('Unnamed: 0', axis='columns', inplace=True)
 dataframe.rename(columns={'SeriousDlqin2yrs': 'Label'}, inplace=True)
+# non_rounded_variables = ['RevolvingUtilizationOfUnsecuredLines', 'DebtRatio', 'MonthlyIncome']
 # Fill in missing values by imputing by mean
-# Imputation by mean
+# Imputation by mean if we need to round the mean
+# for col in dataframe.columns:
+#     # Do not round the mean for certain variables
+#     if col in non_rounded_variables:
+#         mean_var = dataframe[col].mean()
+#     # Round the mean for all other variables
+#     else:
+#         mean_var = dataframe[col].mean().round()
+#     dataframe[col] = dataframe[col].fillna(mean_var)
+# Imputation by mean if we don't need to round the mean
 imp_mean = SimpleImputer(missing_values=pd.NA, strategy='mean')
 for col in dataframe.columns:
     if dataframe[col].isnull().to_numpy().any():
@@ -25,9 +37,16 @@ for col in dataframe.columns:
 y = dataframe['Label'].to_numpy()
 X = dataframe.loc[:, dataframe.columns != 'Label']
 # Split dataset evenly and randomly (Nx2 cross validation)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.50, stratify=y)
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.50, stratify=y)
 
 # Run the model and get the predicted values
-y_pred = pltr(X_train, y, X_test)
+# y_pred = pltr(X_train, y_train, X_test)
+y_pred, y_test = pltr(X, y)
+
 # Find confusion matrix values using y predicted and y test values
 tp, tn, fp, fn = confusion_matrix(y_pred, y_test)
+
+print('True positive ' + str(tp))
+print('False positive ' + str(fp))
+print('False negative ' + str(fn))
+print('True negative ' + str(tn))
