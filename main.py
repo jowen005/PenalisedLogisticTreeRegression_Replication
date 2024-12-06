@@ -4,10 +4,17 @@ import pandas as pd
 
 import analysis_functions
 import numpy as np
+
+from PGI import y_true
+
+
 importlib.reload(analysis_functions)
 from analysis_functions import *
 from sklearn.model_selection import  train_test_split
 from sklearn.impute import SimpleImputer
+from sklearn.metrics import confusion_matrix, roc_auc_score, brier_score_loss
+from scipy.stats import kstest
+
 
 
 # Load the data
@@ -41,12 +48,29 @@ X = dataframe.loc[:, dataframe.columns != 'Label']
 
 # Run the model and get the predicted values
 # y_pred = pltr(X_train, y_train, X_test)
-y_pred, y_test = pltr(X, y)
+y_pred, y_test, y_prob = pltr(X, y)
 
 # Find confusion matrix values using y predicted and y test values
-tp, tn, fp, fn = confusion_matrix(y_pred, y_test)
+# tp, tn, fp, fn = confusion_matrix(y_pred, y_test).ravel()
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+# Proportion of Correct Classification
+pcc = (tp + tn) / (tp + tn + fp + fn)
+# AUC Score
+auc_score = roc_auc_score(y_test, y_pred)
+# Brier score
+brier_score = brier_score_loss(y_test, y_prob, pos_label=1)
+
+# Calculate KS Statistic
+# Get the probabilities of the positive class in descending order for the positive class
+y_prob_descend = sorted(y_prob, reverse=True)
+positive_values = y_prob_descend[y_test == 1]
+negative_values = y_prob_descend[y_test == 0]
+
+k_score = max([abs(np.mean(positive_values <= threshold) - np.mean(negative_values <= threshold)) for threshold in y_prob])
 
 print('True positive ' + str(tp))
 print('False positive ' + str(fp))
 print('False negative ' + str(fn))
 print('True negative ' + str(tn))
+print(brier_score)
+print(k_score)

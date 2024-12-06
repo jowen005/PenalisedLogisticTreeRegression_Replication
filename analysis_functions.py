@@ -1,4 +1,5 @@
 from os.path import split
+from typing import final
 
 import pandas as pd
 from numpy.ma.core import argmax
@@ -15,32 +16,27 @@ import AdaptoLogit as al
 import matplotlib.pyplot as plt
 
 # Confusion matrix function
-def confusion_matrix(pred, actual):
-    if len(pred) != len(actual):
-        return -1
-
-    tp = 0
-    tn = 0
-    fp = 0
-    fn = 0
-    for i in range(len(actual)):
-        if actual[i] > 0.5:  # labels that are 1.0 (positive examples)
-            if pred[i] > 0.5:
-                tp += 1  # correctly predicted positive
-            else:
-                fn += 1  # incorrectly predicted negative
-        else:  # labels that are 0.0 (negative examples)
-            if pred[i] < 0.5:
-                tn += 1  # correctly predicted negative
-            else:
-                fp += 1  # incorrectly predicted positive
-
-    return tp, tn, fp, fn
-
-# Function for calculating the performance statistics
-def performance_stats(tp, tn, fp, fn):
-    stats = []
-    return stats
+# def confusion_matrix(pred, actual):
+#     if len(pred) != len(actual):
+#         return -1
+#
+#     tp = 0
+#     tn = 0
+#     fp = 0
+#     fn = 0
+#     for i in range(len(actual)):
+#         if actual[i] > 0.5:  # labels that are 1.0 (positive examples)
+#             if pred[i] > 0.5:
+#                 tp += 1  # correctly predicted positive
+#             else:
+#                 fn += 1  # incorrectly predicted negative
+#         else:  # labels that are 0.0 (negative examples)
+#             if pred[i] < 0.5:
+#                 tn += 1  # correctly predicted negative
+#             else:
+#                 fp += 1  # incorrectly predicted positive
+#
+#     return tp, tn, fp, fn
 
 # def adaptive_lasso_weights(X, y):
 #     # Create logistic regression model to get adaptive lasso weights, l2 penalty is ridge, so this is Logistic-Ridge
@@ -64,6 +60,7 @@ def adaptive_lasso(X, y):
 
     model = al.AdaptiveLogistic(weight_array=weights.lasso_weights_[0], solver='saga')
     # model.fit(X,y)
+    # Affect the strength of the regularization
     pg = {'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
     #
     # X.drop()
@@ -71,7 +68,9 @@ def adaptive_lasso(X, y):
     cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
     cv_grid_search.fit(X, y)
 
-    return cv_grid_search
+    best_model = cv_grid_search.best_estimator_
+
+    return best_model
 
     # L1 is for lasso penalty
     # model = LogisticRegression(penalty='l1', fit_intercept=False, solver='saga',)
@@ -90,7 +89,9 @@ def pltr(X, y):
     # Split dataset evenly and randomly (Nx2 cross validation)
     X_train, X_test, y_train, y_test = train_test_split(X_effects_train, y, test_size=0.50, stratify=y)
 
+    # This removes feature names from X
     X_train_array = X_train.values
+
     final_model = adaptive_lasso(X_train_array, y_train)
     # Get weights for the adaptive lasso
     # weights = al.AdaptiveWeights(weight_technique='ridge')
@@ -115,10 +116,15 @@ def pltr(X, y):
     # final_model = cv_grid_search.best_estimator_
     y_pred = final_model.predict(X_test)
 
+    # Get the probabilities of the positive class, needed for brier score
+    y_prob = final_model.predict_proba(X_test)[:,1]
+
+
+
     # y_pred = cv_grid_search.predict(X_test)
 
     # Return the predicted target values
-    return y_pred, y_test
+    return y_pred, y_test, y_prob
 
 
     """All the below code was for the attempted MATLAB implementation using the same functions as the paper"""
