@@ -50,10 +50,10 @@ def calculate_pgi(y_true, y_pred, region=0.1):
     pgi_score = partial_gini / ideal_gini
     return pgi_score
 
-# Example usage
-y_true = [0, 1, 1, 0, 1, 0, 1, 0]
-y_pred = [0.1, 0.8, 0.4, 0.6, 0.9, 0.2, 0.7, 0.3]
-region = 0.2  # Top 20% region
-
-pgi_score = calculate_pgi(y_true, y_pred, region=region)
-print("Partial Gini Index (PGI) Score:", pgi_score)
+# # Example usage
+# y_true = [0, 1, 1, 0, 1, 0, 1, 0]
+# y_pred = [0.1, 0.8, 0.4, 0.6, 0.9, 0.2, 0.7, 0.3]
+# region = 0.2  # Top 20% region
+#
+# pgi_score = calculate_pgi(y_true, y_pred, region=region)
+# print("Partial Gini Index (PGI) Score:", pgi_score)

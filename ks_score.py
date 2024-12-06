@@ -40,19 +40,19 @@ def calculate_ks_statistic(y_true, y_pred):
     ks_statistic = np.max(np.abs(cum_positives - cum_negatives))
     return ks_statistic
 
-# Example usage
-y_true = [0, 1, 0, 1, 1, 0, 1, 0]
-y_pred = [0.1, 0.8, 0.4, 0.6, 0.9, 0.2, 0.7, 0.3]
-ks_stat = calculate_ks_statistic(y_true, y_pred)
-print("KS Statistic:", ks_stat)
-
-from scipy.stats import ks_2samp
-
-# Example distributions
-group1 = [0.1, 0.4, 0.35, 0.8]
-group2 = [0.05, 0.3, 0.4, 0.76]
-
-# KS statistic and p-value
-ks_stat, p_value = ks_2samp(group1, group2)
-print("KS Statistic:", ks_stat)
-print("P-value:", p_value)
+# # Example usage
+# y_true = [0, 1, 0, 1, 1, 0, 1, 0]
+# y_pred = [0.1, 0.8, 0.4, 0.6, 0.9, 0.2, 0.7, 0.3]
+# ks_stat = calculate_ks_statistic(y_true, y_pred)
+# print("KS Statistic:", ks_stat)
+#
+# from scipy.stats import ks_2samp
+#
+# # Example distributions
+# group1 = [0.1, 0.4, 0.35, 0.8]
+# group2 = [0.05, 0.3, 0.4, 0.76]
+#
+# # KS statistic and p-value
+# ks_stat, p_value = ks_2samp(group1, group2)
+# print("KS Statistic:", ks_stat)
+# print("P-value:", p_value)

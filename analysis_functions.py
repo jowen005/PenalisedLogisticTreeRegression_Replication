@@ -83,6 +83,8 @@ def pltr(X, y):
     # Get the univariate and bivariate effects without duplicates
     univariate_effects, bivariate_effects = decision_trees(X, y)
 
+    decision_set = len(univariate_effects) + len(bivariate_effects)
+
     # Apply threshold effects to dataset
     X_effects_train = apply_effects(univariate_effects, bivariate_effects, X)
 
@@ -124,7 +126,7 @@ def pltr(X, y):
     # y_pred = cv_grid_search.predict(X_test)
 
     # Return the predicted target values
-    return y_pred, y_test, y_prob
+    return y_pred, y_test, y_prob, decision_set
 
 
     """All the below code was for the attempted MATLAB implementation using the same functions as the paper"""
