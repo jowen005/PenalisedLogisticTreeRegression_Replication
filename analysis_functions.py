@@ -14,6 +14,9 @@ import numpy as np
 import matlab.engine
 import AdaptoLogit as al
 import matplotlib.pyplot as plt
+from asgl import Regressor
+
+
 
 # Confusion matrix function
 # def confusion_matrix(pred, actual):
@@ -51,8 +54,9 @@ import matplotlib.pyplot as plt
 #     return weights
 
 
-# Created adaptive lasso function
-def adaptive_lasso(X, y):
+# Created adaptive lasso function won't use feature names in training
+# Problem here is that the feature names are not maintatined and so the predicted probabilities cannot be calculated
+def adaptive_lasso_al(X, y):
     # Get adaptive lasso weights from logistic-ridge (l2 penalty) regression
     # weights = adaptive_lasso_weights(X, y)
     weights = al.AdaptiveWeights(weight_technique='ridge')
@@ -75,8 +79,77 @@ def adaptive_lasso(X, y):
     # L1 is for lasso penalty
     # model = LogisticRegression(penalty='l1', fit_intercept=False, solver='saga',)
 
+# Create Adaptive Lasso function, uses feature names in training (same results as other adaptive lasso models)
+# Problem here is that predicted probabilities cannot be calculated directly from an asgle Regressor class
+def adaptive_lasso_asgl(X,y):
+    # Create adaptive lasso regressor using asgl library
+    model = Regressor(model='logit', penalization='alasso', fit_intercept=True, weight_technique='ridge',
+                      individual_power_weight=1, group_power_weight=1)
+    # Affects the strength of the regularization, this is finding the lasso with the 10-fold cv
+    pg = {'lambda1': [0.0, 0.1, 1.0, 10.0, 100.0, 1000.0], 'alpha': [0, 0.5, 1]}
+    cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
+    cv_grid_search.fit(X, y)
+
+    best_model = cv_grid_search.best_estimator_
+
+    # Get the best parameters from the grid search cv
+    # best_parameters = cv_grid_search.best_params_
+
+    # Get the coefficients and intercept
+    # al_coefficients = best_model.coef_
+    # al_intercept = best_model.intercept_
+
+    # model_probabilities = Regressor(model='logit_proba', penalization='alasso', fit_intercept=True,
+    #                                lambda1=best_parameters["lambda1"], alpha=best_parameters["alpha"],
+    #                                weight_technique='ridge', individual_power_weight=1, group_power_weight=1)
+    # model_probabilities.fit(X, y)
+
+    # Get the
+    return best_model
+
+# # Adaptive lasso that only uses scikit-learn for outputted model (same results as other adaptive lasso models)
+# # Problem here is that the predicted probabilities are still somehow calculated incorrectly
+def adaptive_lasso_comb(X, y):
+    # Fit initial Adaptive Lasso model using asgl Regressor
+    model = Regressor(model='logit', penalization='alasso', fit_intercept=True, weight_technique='ridge',
+                      individual_power_weight=1, group_power_weight=1)
+    # Affects the strength of the regularization, this is finding the lasso with the 10-fold cv
+    pg = {'lambda1': [0.0, 0.1, 1.0, 10.0, 100.0, 1000.0], 'alpha': [0, 0.5, 1]}
+    cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
+    cv_grid_search.fit(X, y)
+
+    # Get the best model
+    best_model = cv_grid_search.best_estimator_
+
+    # Get the best parameters from the grid search cv
+    best_parameters = cv_grid_search.best_params_
+    # C is the inverse of the regularization strength which was lambda1 in the Regressor model
+    if best_parameters["lambda1"] != 0:
+        c_value = 1/best_parameters["lambda1"]
+    else:
+        c_value = 1.0
+
+    use_model = LogisticRegression(penalty='l2', C=c_value, fit_intercept=True, solver='saga')
+    weights = best_model.coef_
+    use_model.fit(X * weights, y)
+
+    return use_model, weights
+
+# Standard lasso for logistc regression
+def std_lasso(X, y):
+    model = LogisticRegression(penalty='l2', fit_intercept=True, solver='saga')
+
+    pg = {'C': [1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
+
+    cv_grid_search = GridSearchCV(model, param_grid=pg, refit=True, cv=10)
+    cv_grid_search.fit(X, y)
+
+    best_model = cv_grid_search.best_estimator_
+
+    return best_model
+
 # Returns fit plt regression model
-def pltr(X, y):
+def pltr(X, y, method):
     # Get predictive variables from column names
     # predictive_variables = X.columns
 
@@ -92,9 +165,17 @@ def pltr(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X_effects_train, y, test_size=0.50, stratify=y)
 
     # This removes feature names from X
-    X_train_array = X_train.values
-
-    final_model = adaptive_lasso(X_train_array, y_train)
+    #X_train_array = X_train.values
+    if method == 'al':
+        final_model = adaptive_lasso_al(X_train, y_train)
+    elif method == 'asgl':
+        final_model = adaptive_lasso_asgl(X_train, y_train)
+    elif method == 'comb':
+        final_model = adaptive_lasso_comb(X_train, y_train)
+    elif method == 'std':
+        final_model = std_lasso(X_train, y_train)
+    # else:
+    #     final_model == lasso_std(X_train, y_train)
     # Get weights for the adaptive lasso
     # weights = al.AdaptiveWeights(weight_technique='ridge')
     # weights.fit(X_train, y_train)
@@ -116,17 +197,20 @@ def pltr(X, y):
     # cv_grid_search.fit(X_train, y_train)
     #
     # final_model = cv_grid_search.best_estimator_
+
     y_pred = final_model.predict(X_test)
 
-    # Get the probabilities of the positive class, needed for brier score
-    y_prob = final_model.predict_proba(X_test)[:,1]
-
-
+    # Get the probabilities of the positive class, needed for all stats besides pcc
+    if method == 'comb' or method == 'std':
+        y_prob = final_model.predict_proba(X_test)[:,1]
 
     # y_pred = cv_grid_search.predict(X_test)
 
     # Return the predicted target values
-    return y_pred, y_test, y_prob, decision_set
+    if method == 'comb' or method == 'std':
+        return y_pred, y_test, decision_set, y_prob
+    else:
+        return y_pred, y_test, decision_set
 
 
     """All the below code was for the attempted MATLAB implementation using the same functions as the paper"""
