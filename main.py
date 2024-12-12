@@ -17,13 +17,13 @@ from scipy.stats import ks_2samp
 from scipy.stats import kstest
 import cvxpy
 
-# Load the data
+# Load the Bechmark data
 # dataframe = pd.read_csv("cs-training.csv", index_col=False)
-dataframe = pd.read_csv('default_of_credit_card_clients_Taiwan.csv', index_col=False)
-
-# Remove index column that comes with dataset
 # dataframe.drop('Unnamed: 0', axis='columns', inplace=True)
 # dataframe.rename(columns={'SeriousDlqin2yrs': 'Label'}, inplace=True)
+
+# Load the Taiwan data
+dataframe = pd.read_csv('default_of_credit_card_clients_Taiwan.csv', index_col=False)
 dataframe.rename(columns={'default payment next month': 'Label'}, inplace=True)
 
 # non_rounded_variables = ['RevolvingUtilizationOfUnsecuredLines', 'DebtRatio', 'MonthlyIncome']
@@ -52,6 +52,7 @@ X = dataframe.loc[:, dataframe.columns != 'Label']
 
 # Run the model and get the predicted values
 # y_pred = pltr(X_train, y_train, X_test)
+# Methods are 'al' for AdaptoLogistic, 'asgl' for ASGL, 'comb' for Combined, and 'std' for standard
 y_pred, y_test, decision_set, y_prob = pltr(X, y, 'std')
 
 # Find confusion matrix values using y predicted and y test values
